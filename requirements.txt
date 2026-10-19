@@ -11,6 +11,7 @@ pandas>=2.0
 # Config + models
 pydantic>=2.6
 pydantic-settings>=2.2
+paho-mqtt>=2.1
 
 # Database
 SQLAlchemy>=2.0

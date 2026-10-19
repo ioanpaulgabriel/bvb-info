@@ -13,6 +13,7 @@ from bvb_scraper.config import settings
 from bvb_scraper.db.base import init_db
 from bvb_scraper.etl import pipeline
 from bvb_scraper.logging_config import setup_logging
+from bvb_scraper.mqtt_client import publish_json
 
 
 def _cmd_update_all(args: argparse.Namespace) -> None:
@@ -22,6 +23,21 @@ def _cmd_update_all(args: argparse.Namespace) -> None:
         with_details=not args.no_details,
         with_filings=args.with_filings,
     )
+
+    publish_json(
+        "update/status",
+        {
+            "status": "ok",
+            "source": "bvb-info",
+            "updated_at": summary["meta"]["generated_at"],
+            "date": summary["meta"]["date"],
+            "symbols_discovered": summary["meta"].get("symbols_discovered"),
+            "price_rows": summary["meta"].get("price_rows"),
+            "bet_components": summary["meta"].get("bet_components"),
+            "companies_ok": summary["meta"].get("companies_ok"),
+        },
+    )
+
     print(json.dumps(summary["meta"], indent=2, default=str))
 
 

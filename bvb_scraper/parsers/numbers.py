@@ -6,6 +6,7 @@ decimal separator (e.g. ``1.090.322,25`` -> ``1090322.25``).
 
 from __future__ import annotations
 
+import math
 import re
 
 # Matches a pure Romanian thousands-grouped integer, e.g. '598.847.469'.
@@ -13,43 +14,42 @@ _THOUSANDS_GROUPED = re.compile(r"\d{1,3}(\.\d{3})+$")
 
 
 def ro_float(value: object) -> float | None:
-    """Convert a Romanian-formatted numeric string to ``float``.
-
-    Handles thousands separators ('.'), decimal comma (','), currency
-    suffixes ('lei'/'RON') and common dash placeholders. A value containing
-    only dots is treated as a thousands-grouped integer *only* when it matches
-    the grouping pattern (so a genuine decimal like ``39.82`` is preserved).
-    Returns ``None`` when the value is missing or unparseable.
-
-    >>> ro_float("1.090.322,25")
-    1090322.25
-    >>> ro_float("598.847.469")
-    598847469.0
-    >>> ro_float("39.82")
-    39.82
-    >>> ro_float("-") is None
-    True
-    """
-    if value is None:
+    """Parse Romanian strings without reinterpreting numeric inputs."""
+    if value is None or isinstance(value, bool):
         return None
-    s = str(value).strip()
+
+    if not isinstance(value, str):
+        try:
+            result = float(value)
+        except (TypeError, ValueError, OverflowError):
+            return None
+        return result if math.isfinite(result) else None
+
+    s = value.strip()
     if not s or s in ("-", "—", "N/A", "n/a"):
         return None
-    s = s.replace("\xa0", " ").replace(" lei", "").replace(" RON", "").strip()
-    s = s.replace(" ", "")
+
+    s = (
+        s.replace("\xa0", " ")
+        .replace(" lei", "")
+        .replace(" RON", "")
+        .strip()
+        .replace(" ", "")
+    )
+
     if "." in s and "," in s:
-        # Both present: '.' = thousands, ',' = decimal.
         s = s.replace(".", "").replace(",", ".")
     elif "," in s:
-        # Only comma: decimal separator.
         s = s.replace(",", ".")
-    elif "." in s and _THOUSANDS_GROUPED.match(s):
-        # Only dots, in grouping pattern: thousands separators.
+    elif "." in s and _THOUSANDS_GROUPED.fullmatch(s):
         s = s.replace(".", "")
+
     try:
-        return float(s)
-    except ValueError:
+        result = float(s)
+    except (ValueError, OverflowError):
         return None
+
+    return result if math.isfinite(result) else None
 
 
 def ro_pct(value: object) -> float | None:

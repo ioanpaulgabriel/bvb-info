@@ -44,11 +44,63 @@ def _repo_session():
 def download_prices(
     session: requests.Session | None = None, repo: Repository | None = None
 ) -> list[PriceSnapshot]:
-    """Fetch trading + ETF snapshots and persist them (if a repo is given)."""
+    """Import only unique, valid REGS snapshots; ETF flow is disabled."""
+    import math
+
     session = session or get_session()
-    prices = fetch_trading_snapshot(session) + fetch_etf_snapshot(session)
+    snapshots = fetch_trading_snapshot(session)
+
+    if not snapshots:
+        raise ValueError("Trading snapshot is empty; nothing was saved")
+
+    prices: list[PriceSnapshot] = []
+    seen = set()
+    excluded_markets = 0
+    excluded_invalid = []
+
+    for p in snapshots:
+        market = (p.market or "").strip().upper()
+        if market != "REGS":
+            excluded_markets += 1
+            continue
+
+        key = (p.symbol, p.date)
+        if key in seen:
+            raise ValueError(f"Duplicate REGS symbol/date: {key}")
+        seen.add(key)
+
+        values = (p.open, p.max, p.min, p.price, p.volume)
+        positive = all(
+            value is not None and math.isfinite(value) and value > 0
+            for value in values
+        )
+        coherent = (
+            positive
+            and p.min <= p.open <= p.max
+            and p.min <= p.price <= p.max
+        )
+
+        if p.source != "trading" or not coherent:
+            excluded_invalid.append(p.symbol)
+            continue
+
+        prices.append(p)
+
+    if not prices:
+        raise ValueError("No valid REGS rows; nothing was saved")
+
+    logger.info(
+        "REGS validation: received=%d accepted=%d "
+        "other_markets=%d invalid=%s",
+        len(snapshots),
+        len(prices),
+        excluded_markets,
+        excluded_invalid,
+    )
+
     if repo is not None:
         repo.upsert_prices(prices)
+
     return prices
 
 

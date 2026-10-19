@@ -56,6 +56,13 @@ class Settings(BaseSettings):
 
     # ── Logging ──
     log_level: str = "INFO"
+    # ── MQTT / Home Assistant ──
+    mqtt_enabled: bool = True
+    mqtt_host: str = "127.0.0.1"
+    mqtt_port: int = 1883
+    mqtt_username: str | None = None
+    mqtt_password: str | None = None
+    mqtt_topic_prefix: str = "homelab/bvb-info"
 
     @property
     def headers(self) -> dict[str, str]:
